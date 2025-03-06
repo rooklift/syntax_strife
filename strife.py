@@ -124,6 +124,8 @@ class RoboBot:
 		if token.endswith(":") and token[:-1] in self.labels:
 			return						# It's a label so it does nothing itself.
 
+		# STATUS : place basic info on the stack
+
 		elif token == "X":
 			self.stack.append(int(self.position[0]))
 
@@ -149,6 +151,8 @@ class RoboBot:
 			distance = self.scan_for_enemies(arena)
 			self.stack.append(distance)
 
+		# BOT ADJUSTMENTS : consume energy to do things
+
 		elif token == "SETTRACKS":
 			new_direction = int(self.stack.pop()) % 360
 			energy_cost = calculate_direction_change_cost(self.tracks_direction, new_direction)
@@ -170,14 +174,22 @@ class RoboBot:
 			self.energy -= 2 * power  # Cost is 2 * power
 			self.fire_weapon(power, arena)
 
+		# DUP : duplicate top stack item
+
 		elif token == "DUP":
 			self.stack.append(self.stack[-1])
+
+		# DROP : pop item without using it
 
 		elif token == "DROP":
 			self.stack.pop()
 
+		# SWAP : swap top 2 items on stack
+
 		elif token == "SWAP":
 			self.stack[-1], self.stack[-2] = self.stack[-2], self.stack[-1]
+
+		# IFELSE : if stack[-3] then put stack[-2] on top, else put stack[-1] on top
 
 		elif token == "IFELSE":
 			c = self.stack.pop()
@@ -188,49 +200,55 @@ class RoboBot:
 			else:
 				self.stack.append(c)
 
-		elif token == "+":
+		# BASIC MATHS AND LOGIC OPERATIONS
+
+		elif token == "+":					# 4 2 +	(places 6 on stack)
 			b = self.stack.pop()
 			a = self.stack.pop()
 			self.stack.append(a + b)
 
-		elif token == "-":
+		elif token == "-":					# 4 2 - (places 2 on stack)
 			b = self.stack.pop()
 			a = self.stack.pop()
 			self.stack.append(a - b)
 
-		elif token == "*":
+		elif token == "*":					# 4 2 * (places 8 on stack)
 			b = self.stack.pop()
 			a = self.stack.pop()
 			self.stack.append(a * b)
 
-		elif token == "/":
+		elif token == "/":					# 4 2 / (places 2 on stack, always uses integer division)
 			b = self.stack.pop()
 			a = self.stack.pop()
-			self.stack.append(a // b)		# Integer division
+			self.stack.append(a // b)
 
-		elif token == "%":
+		elif token == "%":					# 4 2 % (places 0 on stack)
 			b = self.stack.pop()
 			a = self.stack.pop()
 			self.stack.append(a % b)
 
-		elif token == "<":
+		elif token == "<":					# 4 2 < (places 0 on stack)
 			b = self.stack.pop()
 			a = self.stack.pop()
 			self.stack.append(1 if a < b else 0)
 
-		elif token == ">":
+		elif token == ">":					# 4 2 > (places 1 on stack)
 			b = self.stack.pop()
 			a = self.stack.pop()
 			self.stack.append(1 if a > b else 0)
 
-		elif token == "==":
+		elif token == "==":					# 4 2 == (places 0 on stack)
 			b = self.stack.pop()
 			a = self.stack.pop()
 			self.stack.append(1 if a == b else 0)
 
+		# JUMP / RETURN : jump to address at stack[-1]
+
 		elif token == "JUMP" or token == "RETURN":
 			target = self.get_address_from_item(self.stack.pop())
 			self.pc = target
+
+		# JUMPIF : if stack[-2] then jump to address at stack[-1]
 
 		elif token == "JUMPIF":
 			target = self.get_address_from_item(self.stack.pop())
@@ -238,10 +256,14 @@ class RoboBot:
 			if condition:
 				self.pc = target
 
+		# CALL : jump to address at stack[-1]
+
 		elif token == "CALL":
 			target = self.get_address_from_item(self.stack.pop())
 			self.stack.append(self.pc)		# Push return address
 			self.pc = self.labels[label]
+
+		# CALLIF : if stack[-2] then jump to address at stack[-1], leaving a return address on stack
 
 		elif token == "CALLIF":
 			target = self.get_address_from_item(self.stack.pop())
@@ -250,24 +272,32 @@ class RoboBot:
 				self.stack.append(self.pc)	# Push return address
 				self.pc = target
 
+		# STRING LITERALS : place onto stack
+
 		elif token.startswith('"') and token.endswith('"'):
-			self.stack.append(token[1:-1])	# Push string literal onto stack, sans quotation marks
+			self.stack.append(token[1:-1])
+
+		# STORE : save item to variable - e.g. 123 "foo" STORE
 
 		elif token == "STORE":
-			value = self.stack.pop()
 			var_name = self.stack.pop()
+			value = self.stack.pop()
 			if not isinstance(var_name, str):
-				raise TypeError("Variable identifier was not a string!")
+				raise TypeError("STORE: Variable identifier was not a string!")
 			self.variables[var_name] = value
+
+		# LOAD : load item from variable - e.g. "foo" LOAD
 
 		elif token == "LOAD":
 			var_name = self.stack.pop()
 			if not isinstance(var_name, str):
-				raise TypeError("Variable identifier was not a string!")
+				raise TypeError("LOAD: Variable identifier was not a string!")
 			if var_name in self.variables:
 				self.stack.append(self.variables[var_name])
 			else:
 				self.stack.append(0)			# Default to 0 for undefined variables
+
+		# NUMERIC VALUES
 
 		else:
 			value = float(token)
