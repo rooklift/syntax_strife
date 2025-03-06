@@ -4,12 +4,13 @@ import sys
 
 MAX_HEALTH = 100
 MAX_ENERGY = 100
+BOT_RADIUS = 10
 
 class RoboBot:
-	def __init__(self, program, radius, name):
+	def __init__(self, program, name):
 		self.name = name
 		self.program = program
-		self.radius = radius
+		self.radius = BOT_RADIUS
 		self.tokens, self.token_counts = self.tokenize(program)
 		self.position = (0, 0)		# To be set from outside
 		self.health = MAX_HEALTH
@@ -403,7 +404,7 @@ class Arena:
 		self.tick_count = 0
 
 	def add_bot(self, code, name):
-		bot = RoboBot(code, 20, name)
+		bot = RoboBot(code, name)
 		self.bots.append(bot)
 		bot.position = (
 			random.randint(0, self.size[0]),

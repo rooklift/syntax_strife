@@ -83,7 +83,7 @@ class Visualizer:
 		y = int(bot.position[1] * self.scale_y) + MARGIN
 
 		# Draw bot body
-		pygame.draw.circle(self.screen, color, (x, y), bot.radius)
+		pygame.draw.circle(self.screen, color, (x, y), bot.radius * ((self.scale_x + self.scale_y) / 2))
 
 		# Draw tracks direction indicator
 		tracks_rad = math.radians((bot.tracks_direction - 90) % 360)
