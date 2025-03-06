@@ -1,0 +1,23 @@
+# Circling bot
+
+5 SETSPEED
+
+main_loop:
+	TRACKS 3 + SETTRACKS		# Gradually turn
+	AIM 15 + SETAIM				# Spin turret faster
+	SCAN						# Check for enemies
+	DUP 0 >						# Found something? First, save put a 2nd copy of SCAN on the stack.
+	"fire" JUMPIF				# Jump to fire if found (which uses the copy of SCAN result).
+	DROP						# Clear the unneeded SCAN copy.
+	"main_loop" JUMP			# Loop
+
+fire:
+	DUP 200 <					# Check distance
+	"high_power" JUMPIF			# High power for close targets
+	5 FIRE						# Medium power
+	"main_loop" JUMP
+
+high_power:
+	DROP						# Clear distance
+	10 FIRE						# Full power!
+	"main_loop" JUMP
