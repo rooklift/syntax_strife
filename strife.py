@@ -112,6 +112,9 @@ class RoboBot:
 
 	def execute_next(self, arena):
 
+		if len(self.stack) > 100:
+			raise MemoryError("Stack overflow")
+
 		token = self.tokens[self.pc]
 		self.pc += 1					# So self.pc now points to the token after this one. CALL can thus use it as is.
 
@@ -175,6 +178,15 @@ class RoboBot:
 
 		elif token == "SWAP":
 			self.stack[-1], self.stack[-2] = self.stack[-2], self.stack[-1]
+
+		elif token == "IFELSE":
+			c = self.stack.pop()
+			b = self.stack.pop()
+			a = self.stack.pop()
+			if a:
+				self.stack.append(b)
+			else:
+				self.stack.append(c)
 
 		elif token == "+":
 			b = self.stack.pop()

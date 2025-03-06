@@ -1,11 +1,9 @@
 # Spinning turret bot
 
-aimloop:
+aim:
 	AIM 7 + SETAIM
-	SCAN 0 == "aimloop" JUMPIF
-	# Fallthrough
+	SCAN "fire" "aim" IFELSE JUMP
 
-fireloop:
+fire:
 	8 FIRE
-	SCAN 0 > "fireloop" JUMPIF
-	"aimloop" JUMP
+	SCAN "fire" "aim" IFELSE JUMP
