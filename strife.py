@@ -1,5 +1,6 @@
 import math
 import random
+import sys
 
 class RoboBot:
 	def __init__(self, program, name="Bot"):
@@ -11,7 +12,6 @@ class RoboBot:
 		self.tracks_direction = 0  # 0-359 degrees
 		self.aim_direction = 0     # 0-359 degrees
 		self.speed = 0             # 0-10 units per tick
-		self.active = True
 
 		# Execution state
 		self.pc = 0                # Program counter
@@ -68,27 +68,21 @@ class RoboBot:
 		return labels
 
 	def tick(self, arena):
-		"""Execute one tick of bot operations"""
-		if not self.active:
+		try:
+			if self.health <= 0:
+				return
+			self.energy += 1
+			if self.energy < 0:
+				return
+			self.move()
+			self.ops_executed = 0			# Reset for this tick
+			while self.ops_executed < self.ops_per_tick:
+				if not self.execute_next(arena):
+					break
+		except Exception as e:
+			print(e)
+			self.health = 0
 			return
-
-		# Regenerate energy
-		self.energy += 1
-
-		# If energy is negative, don't execute
-		if self.energy < 0:
-			return
-
-		# Apply movement
-		self.move()
-
-		# Reset operation counter for this tick
-		self.ops_executed = 0
-
-		# Execute operations until limit reached
-		while self.ops_executed < self.ops_per_tick:
-			if not self.execute_next(arena):
-				break
 
 	def move(self):
 		"""Apply movement based on tracks and speed"""
@@ -144,7 +138,7 @@ class RoboBot:
 
 		elif token == "SETTRACKS":
 			if not self.stack:
-				self.active = False  # Stack underflow kills the bot
+				self.health = 0  # Stack underflow kills the bot
 				return False
 
 			new_direction = int(self.stack.pop()) % 360
@@ -155,7 +149,7 @@ class RoboBot:
 
 		elif token == "SETAIM":
 			if not self.stack:
-				self.active = False
+				self.health = 0
 				return False
 
 			new_direction = int(self.stack.pop()) % 360
@@ -164,7 +158,7 @@ class RoboBot:
 
 		elif token == "SETSPEED":
 			if not self.stack:
-				self.active = False
+				self.health = 0
 				return False
 
 			new_speed = min(10, max(0, int(self.stack.pop())))
@@ -173,7 +167,7 @@ class RoboBot:
 
 		elif token == "FIRE":
 			if not self.stack:
-				self.active = False
+				self.health = 0
 				return False
 
 			power = min(10, max(1, int(self.stack.pop())))
@@ -182,28 +176,28 @@ class RoboBot:
 
 		elif token == "DUP":
 			if not self.stack:
-				self.active = False
+				self.health = 0
 				return False
 
 			self.stack.append(self.stack[-1])
 
 		elif token == "DROP":
 			if not self.stack:
-				self.active = False
+				self.health = 0
 				return False
 
 			self.stack.pop()
 
 		elif token == "SWAP":
 			if len(self.stack) < 2:
-				self.active = False
+				self.health = 0
 				return False
 
 			self.stack[-1], self.stack[-2] = self.stack[-2], self.stack[-1]
 
 		elif token == "+":
 			if len(self.stack) < 2:
-				self.active = False
+				self.health = 0
 				return False
 
 			b = self.stack.pop()
@@ -212,7 +206,7 @@ class RoboBot:
 
 		elif token == "-":
 			if len(self.stack) < 2:
-				self.active = False
+				self.health = 0
 				return False
 
 			b = self.stack.pop()
@@ -221,7 +215,7 @@ class RoboBot:
 
 		elif token == "*":
 			if len(self.stack) < 2:
-				self.active = False
+				self.health = 0
 				return False
 
 			b = self.stack.pop()
@@ -230,33 +224,33 @@ class RoboBot:
 
 		elif token == "/":
 			if len(self.stack) < 2:
-				self.active = False
+				self.health = 0
 				return False
 
 			b = self.stack.pop()
 			a = self.stack.pop()
 			if b == 0:
-				self.active = False  # Division by zero kills the bot
+				self.health = 0  # Division by zero kills the bot
 				return False
 
 			self.stack.append(a // b)  # Integer division
 
 		elif token == "%":
 			if len(self.stack) < 2:
-				self.active = False
+				self.health = 0
 				return False
 
 			b = self.stack.pop()
 			a = self.stack.pop()
 			if b == 0:
-				self.active = False  # Modulo by zero kills the bot
+				self.health = 0  # Modulo by zero kills the bot
 				return False
 
 			self.stack.append(a % b)
 
 		elif token == "<":
 			if len(self.stack) < 2:
-				self.active = False
+				self.health = 0
 				return False
 
 			b = self.stack.pop()
@@ -265,7 +259,7 @@ class RoboBot:
 
 		elif token == ">":
 			if len(self.stack) < 2:
-				self.active = False
+				self.health = 0
 				return False
 
 			b = self.stack.pop()
@@ -274,7 +268,7 @@ class RoboBot:
 
 		elif token == "=":
 			if len(self.stack) < 2:
-				self.active = False
+				self.health = 0
 				return False
 
 			b = self.stack.pop()
@@ -282,26 +276,34 @@ class RoboBot:
 			self.stack.append(1 if a == b else 0)
 
 		elif token == "JUMP" or token == "RETURN":
+
+			# This needs to work whether the address is a label or a number.
+
 			if not self.stack:
-				self.active = False
+				self.health = 0
 				return False
 
-			label = self.stack.pop()
-			# Remove quotes if present
-			if isinstance(label, str):
+			raw_target = self.stack.pop()
+			target = None
+
+			if isinstance(raw_target, str):
+				label = raw_target
 				if label.startswith('"') and label.endswith('"'):
 					label = label[1:-1]
+				if label in self.labels:
+					target = self.labels[label]
+			elif isinstance(raw_target, int):
+				target = raw_target
 
-			if label in self.labels:
-				self.pc = self.labels[label]
-			else:
-				print(f"Error: Undefined label '{label}'")
-				self.active = False
-				return False
+			if target == None:
+				raise ValueError("Bad jump: " + str(raw_target))
+
+			self.pc = target
+
 
 		elif token == "JUMPIF":
 			if len(self.stack) < 2:
-				self.active = False
+				self.health = 0
 				return False
 
 			label = self.stack.pop()
@@ -317,12 +319,12 @@ class RoboBot:
 					self.pc = self.labels[label]
 				else:
 					print(f"Error: Undefined label '{label}'")
-					self.active = False
+					self.health = 0
 					return False
 
 		elif token == "CALL":
 			if not self.stack:
-				self.active = False
+				self.health = 0
 				return False
 
 			label = self.stack.pop()
@@ -337,8 +339,32 @@ class RoboBot:
 				self.pc = self.labels[label]
 			else:
 				print(f"Error: Undefined label '{label}'")
-				self.active = False
+				self.health = 0
 				return False
+
+		elif token == "CALLIF":
+			if len(self.stack) < 2:
+				self.health = 0
+				return False
+
+			label = self.stack.pop()
+			condition = self.stack.pop()
+
+			if condition:
+				# Push return address only if condition is true
+				self.stack.append(self.pc)
+
+				# Remove quotes if present
+				if isinstance(label, str):
+					if label.startswith('"') and label.endswith('"'):
+						label = label[1:-1]
+
+				if label in self.labels:
+					self.pc = self.labels[label]
+				else:
+					print(f"Error: Undefined label '{label}'")
+					self.health = 0
+					return False
 
 		elif token.startswith('"') and token.endswith('"'):
 			# String literal - push onto stack
@@ -346,7 +372,7 @@ class RoboBot:
 
 		elif token == "STORE":
 			if len(self.stack) < 2:
-				self.active = False
+				self.health = 0
 				return False
 
 			value = self.stack.pop()
@@ -355,7 +381,7 @@ class RoboBot:
 
 		elif token == "LOAD":
 			if not self.stack:
-				self.active = False
+				self.health = 0
 				return False
 
 			var_name = self.stack.pop()
@@ -458,8 +484,8 @@ class Arena:
 		self.bullets = []
 		self.tick_count = 0
 
-	def add_bot(self, bot):
-		self.bots.append(bot)
+	def add_bot(self, code, name):
+		self.bots.append(RoboBot(code, name))
 
 	def tick(self):
 		"""Advance simulation by one tick"""
@@ -473,7 +499,7 @@ class Arena:
 		self.update_bullets()
 
 		# Remove dead bots
-		self.bots = [bot for bot in self.bots if bot.health > 0 and bot.active]
+		self.bots = [bot for bot in self.bots if bot.health > 0]
 
 	def update_bullets(self):
 		"""Move bullets and check for collisions"""
@@ -526,69 +552,15 @@ class Arena:
 
 
 # Example usage
-if __name__ == "__main__":
-	spinner_bot = """
-	# Spinning turret bot
-	5 SETSPEED         # Constant speed
-	0 SETTRACKS        # Go straight
 
-	main_loop:
-	  AIM 10 + 360 % SETAIM  # Rotate turret
-	  SCAN              # Look for enemies
-	  0 >               # Found something?
-	  "fire" JUMPIF     # Jump to fire if found
-	  "main_loop" JUMP  # Otherwise keep scanning
+def main():
 
-	fire:
-	  8 FIRE            # Fire with power 8
-	  "main_loop" JUMP  # Back to scanning
-	"""
-
-	circle_bot = """
-	# Circling bot
-	5 SETSPEED           # Set speed
-
-	main_loop:
-	  TRACKS 3 + 360 % SETTRACKS  # Gradually turn
-	  AIM 15 + 360 % SETAIM       # Spin turret faster
-	  SCAN                        # Check for enemies
-	  DUP 0 >                     # Found something?
-	  "fire" JUMPIF               # Jump to fire if found
-	  DROP                        # Clear stack
-	  "main_loop" JUMP            # Loop
-
-	fire:
-	  DUP 200 <                   # Check distance
-	  "high_power" JUMPIF         # High power for close targets
-	  5 FIRE                      # Medium power
-	  "main_loop" JUMP
-
-	high_power:
-	  DROP                        # Clear distance
-	  10 FIRE                     # Full power!
-	  "main_loop" JUMP
-	"""
-
-	# Create arena and bots
 	arena = Arena()
-	bot1 = RoboBot(spinner_bot, "Spinner")
-	bot2 = RoboBot(circle_bot, "Circler")
 
-	# Debug - print tokens and labels
-	print("Tokens for Spinner:")
-	for i, token in enumerate(bot1.tokens):
-		print(f"  {i}: {token}")
-	print("\nLabels for Spinner:")
-	for label, pos in bot1.labels.items():
-		print(f"  {label}: position {pos}")
-
-	arena.add_bot(bot1)
-	arena.add_bot(bot2)
-
-	# Print initial state
-	print("Starting battle with bots:")
-	print(f"  - {bot1.name}: position={bot1.position}")
-	print(f"  - {bot2.name}: position={bot2.position}")
+	for filename in sys.argv[1:]:
+		with open(filename, encoding = "utf-8") as infile:
+			code = infile.read()
+			arena.add_bot(code, filename)
 
 	# Run simulation
 	max_ticks = 1000
@@ -613,3 +585,7 @@ if __name__ == "__main__":
 		print(f"Winner: {winner.name} with {winner.health:.1f} health remaining")
 	else:
 		print(f"Battle ended in a draw after {arena.tick_count} ticks")
+
+
+if __name__ == "__main__":
+	main()
