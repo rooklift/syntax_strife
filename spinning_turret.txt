@@ -1,10 +1,11 @@
 # Spinning turret bot
 
-main_loop:
-	AIM 10 + SETAIM			# Rotate turret
-	SCAN 0 > "fire" CALLIF	# Call fire if found
-	"main_loop" JUMP  		# Otherwise keep scanning
+aimloop:
+	AIM 2 + SETAIM
+	SCAN 0 > "fireloop" JUMPIF
+	"aimloop" JUMP
 
-fire:
-	8 FIRE					# Fire with power 8
-	RETURN					# Back to where we were
+fireloop:
+	8 FIRE
+	SCAN 0 > "fireloop" JUMPIF
+	"aimloop" JUMP
