@@ -1,0 +1,22 @@
+X 200 > -20 20 IFELSE SETSPEEDX
+Y 200 > -20 20 IFELSE SETSPEEDY
+
+loop:
+
+	X 380 > SPEEDX 0 > AND "reversex" CALLIF
+	X 20 < SPEEDX 0 < AND "reversex" CALLIF
+	Y 380 > SPEEDY 0 > AND "reversey" CALLIF
+	Y 20 < SPEEDY 0 < AND "reversey" CALLIF
+
+	SCAN NOT 10 * AIM + SETAIM
+	SCAN FIRE
+
+	"loop" JUMP
+
+reversex:
+	SPEEDX -1 * SETSPEEDX
+	RETURN
+
+reversey:
+	SPEEDY -1 * SETSPEEDY
+	RETURN

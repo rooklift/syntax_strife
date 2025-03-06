@@ -5,6 +5,7 @@ import sys
 MAX_HEALTH = 100
 MAX_ENERGY = 100
 BOT_RADIUS = 10
+MAX_SPEED = 20						# But divided by 10
 
 class RoboBot:
 	def __init__(self, program, name):
@@ -15,9 +16,9 @@ class RoboBot:
 		self.position = (0, 0)		# To be set from outside
 		self.health = MAX_HEALTH
 		self.energy = MAX_ENERGY
-		self.tracks_direction = 0	# 0-359 degrees
+		self.speedx = 0
+		self.speedy = 0
 		self.aim_direction = 0		# 0-359 degrees
-		self.speed = 0				# 0-10 units per tick
 
 		# Execution state
 		self.pc = 0					# Program counter
@@ -104,17 +105,11 @@ class RoboBot:
 
 	def move(self, arena):
 
-		# Convert direction to radians for trig functions
-		# Modified to make 0 degrees point up
-
-		if self.speed > 0:
-			rad = math.radians((self.tracks_direction - 90) % 360)
-			dx = math.cos(rad) * self.speed
-			dy = math.sin(rad) * self.speed
+		if self.speedx != 0 or self.speedy != 0:
 
 			x, y = self.position
-			new_x = x + dx
-			new_y = y + dy
+			new_x = x + self.speedx / 10
+			new_y = y + self.speedy / 10
 
 			# Simple boundary check
 			new_x = max(0, min(arena.size[0], new_x))
@@ -149,14 +144,14 @@ class RoboBot:
 		elif token == "Y":
 			self.stack.append(int(self.position[1]))
 
-		elif token == "TRACKS":
-			self.stack.append(self.tracks_direction)
+		elif token == "SPEEDX":
+			self.stack.append(int(self.speedx))
+
+		elif token == "SPEEDY":
+			self.stack.append(int(self.speedy))
 
 		elif token == "AIM":
 			self.stack.append(self.aim_direction)
-
-		elif token == "SPEED":
-			self.stack.append(self.speed)
 
 		elif token == "HEALTH":
 			self.stack.append(self.health)
@@ -170,26 +165,27 @@ class RoboBot:
 
 		# BOT ADJUSTMENTS : consume energy to do things
 
-		elif token == "SETTRACKS":
-			new_direction = int(self.stack.pop()) % 360
-			energy_cost = calculate_direction_change_cost(self.tracks_direction, new_direction)
-			self.energy -= energy_cost
-			self.tracks_direction = new_direction
+		elif token == "SETSPEEDX":
+			oldval = self.speedx
+			self.speedx = min(MAX_SPEED, max(-MAX_SPEED, int(self.stack.pop())))
+			self.energy -= abs(self.speedx - oldval)
+
+		elif token == "SETSPEEDY":
+			oldval = self.speedy
+			self.speedy = min(MAX_SPEED, max(-MAX_SPEED, int(self.stack.pop())))
+			self.energy -= abs(self.speedy - oldval)
 
 		elif token == "SETAIM":
 			new_direction = int(self.stack.pop()) % 360
-			self.energy -= 2  # Fixed cost
-			self.aim_direction = new_direction
-
-		elif token == "SETSPEED":
-			new_speed = min(10, max(0, int(self.stack.pop())))
-			self.energy -= new_speed  # Cost equals new speed
-			self.speed = new_speed
+			if new_direction != self.aim_direction:
+				self.energy -= 2  # Fixed cost
+				self.aim_direction = new_direction
 
 		elif token == "FIRE":
-			power = min(10, max(1, int(self.stack.pop())))
-			self.energy -= 2 * power  # Cost is 2 * power
-			self.fire_weapon(power, arena)
+			power = min(self.energy, max(0, int(self.stack.pop())))
+			if power:
+				self.energy -= power
+				self.fire_weapon(power, arena)
 
 		# DUP : duplicate top stack item
 
@@ -218,6 +214,19 @@ class RoboBot:
 				self.stack.append(c)
 
 		# BASIC MATHS AND LOGIC OPERATIONS
+
+		elif token == "AND":
+			b = self.stack.pop()
+			a = self.stack.pop()
+			self.stack.append(a and b)
+
+		elif token == "OR":
+			b = self.stack.pop()
+			a = self.stack.pop()
+			self.stack.append(a or b)
+
+		elif token == "NOT":
+			self.stack.append(0 if self.stack.pop() else 1)
 
 		elif token == "+":					# 4 2 +	(places 6 on stack)
 			b = self.stack.pop()
@@ -385,19 +394,10 @@ class RoboBot:
 			position=self.position,
 			direction=self.aim_direction,
 			power=power,
-			speed=10 + power,  # Bullet speed increases with power
+			speed=6,
 			owner=self
 		)
 		arena.bullets.append(bullet)
-
-
-def calculate_direction_change_cost(current, new):
-	"""Calculate energy cost for direction change"""
-	# Find smallest angle between directions
-	diff = abs(current - new)
-	if diff > 180:
-		diff = 360 - diff
-	return diff
 
 
 class Bullet:
@@ -480,7 +480,7 @@ class Arena:
 				dy = bot.position[1] - bullet.position[1]
 				distance = math.sqrt(dx*dx + dy*dy)
 
-				if distance < bot.radius:
+				if distance < bot.radius + 2:	# A little margin for error
 					# Hit! Calculate damage
 					damage = bullet.power * (1 - bullet.distance_traveled/bullet.max_range)
 					bot.health -= damage
