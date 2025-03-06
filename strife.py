@@ -6,7 +6,7 @@ class RoboBot:
 	def __init__(self, program, name="Bot"):
 		self.name = name
 		self.tokens = self.tokenize(program)
-		self.position = (random.randint(50, 750), random.randint(50, 750))
+		self.position = (0, 0)		# To be set from outside
 		self.health = 100
 		self.energy = 100
 		self.tracks_direction = 0  # 0-359 degrees
@@ -75,7 +75,7 @@ class RoboBot:
 			self.energy += 1
 			if self.energy < 0:
 				return
-			self.move()
+			self.move(arena)
 			self.ops_executed = 0			# Reset for this tick
 			while self.ops_executed < self.ops_per_tick:
 				self.execute_next(arena)
@@ -85,11 +85,13 @@ class RoboBot:
 			self.health = 0
 			return
 
-	def move(self):
-		"""Apply movement based on tracks and speed"""
+	def move(self, arena):
+
+		# Convert direction to radians for trig functions
+		# Modified to make 0 degrees point up
+
 		if self.speed > 0:
-			# Convert direction to radians for trig functions
-			rad = math.radians(self.tracks_direction)
+			rad = math.radians((self.tracks_direction - 90) % 360)
 			dx = math.cos(rad) * self.speed
 			dy = math.sin(rad) * self.speed
 
@@ -97,9 +99,9 @@ class RoboBot:
 			new_x = x + dx
 			new_y = y + dy
 
-			# Simple boundary check (assuming 800x800 arena)
-			new_x = max(0, min(800, new_x))
-			new_y = max(0, min(800, new_y))
+			# Simple boundary check
+			new_x = max(0, min(arena.size[0], new_x))
+			new_y = max(0, min(arena.size[1], new_y))
 
 			self.position = (new_x, new_y)
 
@@ -118,6 +120,12 @@ class RoboBot:
 
 		if token.endswith(":") and token[:-1] in self.labels:
 			return						# It's a label so it does nothing itself.
+
+		elif token == "X":
+			self.stack.append(int(self.position[0]))
+
+		elif token == "Y":
+			self.stack.append(int(self.position[1]))
 
 		elif token == "TRACKS":
 			self.stack.append(self.tracks_direction)
@@ -203,7 +211,7 @@ class RoboBot:
 			a = self.stack.pop()
 			self.stack.append(1 if a > b else 0)
 
-		elif token == "=":
+		elif token == "==":
 			b = self.stack.pop()
 			a = self.stack.pop()
 			self.stack.append(1 if a == b else 0)
@@ -255,32 +263,31 @@ class RoboBot:
 			self.stack.append(value)
 
 	def scan_for_enemies(self, arena):
-		"""Scan for enemies in the direction of aim"""
-		# Simple implementation - in real game would do raycasting
-		min_distance = float('inf')
+	    # Scan for enemies in the direction of aim
+	    # Simple implementation - should do raycasting?
+	    min_distance = float('inf')
 
-		for bot in arena.bots:
-			if bot is self:
-				continue
+	    for bot in arena.bots:
+	        if bot is self:
+	            continue
 
-			# Calculate distance and angle to target
-			dx = bot.position[0] - self.position[0]
-			dy = bot.position[1] - self.position[1]
-			distance = math.sqrt(dx*dx + dy*dy)
+	        # Calculate distance and angle to target
+	        dx = bot.position[0] - self.position[0]
+	        dy = bot.position[1] - self.position[1]
+	        distance = math.sqrt(dx*dx + dy*dy)
 
-			# Calculate angle to target in degrees
-			angle = math.degrees(math.atan2(dy, dx))
-			if angle < 0:
-				angle += 360
+	        # Calculate angle to target in degrees
+	        # Modified to make 0 degrees point up
+	        angle = (math.degrees(math.atan2(dy, dx)) + 90) % 360
 
-			# Check if in field of view (within 3 degrees of aim)
-			angle_diff = min((angle - self.aim_direction) % 360,
-							 (self.aim_direction - angle) % 360)
+	        # Check if in field of view (within 3 degrees of aim)
+	        angle_diff = min((angle - self.aim_direction) % 360,
+	                         (self.aim_direction - angle) % 360)
 
-			if angle_diff <= 3 and distance < min_distance:
-				min_distance = distance
+	        if angle_diff <= 3 and distance < min_distance:
+	            min_distance = distance
 
-		return min_distance if min_distance != float('inf') else 0
+	    return min_distance if min_distance != float('inf') else 0
 
 	def fire_weapon(self, power, arena):
 		"""Fire weapon at enemies in aim direction - creates a bullet"""
@@ -315,8 +322,9 @@ class Bullet:
 		self.distance_traveled = 0
 
 	def move(self):
-		"""Move bullet according to its direction and speed"""
-		rad = math.radians(self.direction)
+		# Move bullet according to its direction and speed
+		# Modified to make 0 degrees point up
+		rad = math.radians((self.direction - 90) % 360)
 		dx = math.cos(rad) * self.speed
 		dy = math.sin(rad) * self.speed
 
@@ -330,14 +338,19 @@ class Bullet:
 
 
 class Arena:
-	def __init__(self, size=(800, 800)):
+	def __init__(self, size=(400, 400)):
 		self.size = size
 		self.bots = []
 		self.bullets = []
 		self.tick_count = 0
 
 	def add_bot(self, code, name):
-		self.bots.append(RoboBot(code, name))
+		bot = RoboBot(code, name)
+		self.bots.append(bot)
+		bot.position = (
+			random.randint(0, self.size[0]),
+			random.randint(0, self.size[1]),
+		)
 
 	def tick(self):
 		"""Advance simulation by one tick"""
@@ -403,7 +416,6 @@ class Arena:
 		return None
 
 
-# Example usage
 
 def main():
 
@@ -423,7 +435,7 @@ def main():
 		if tick % 100 == 0:
 			print(f"Tick {tick}:")
 			for bot in arena.bots:
-				print(f"  - {bot.name}: health={bot.health:.1f}, energy={bot.energy:.1f}, " +
+				print(f"  - {bot.name}: health={bot.health:.1f}, energy={bot.energy:.1f}, aim={bot.aim_direction} " +
 					  f"position=({bot.position[0]:.1f}, {bot.position[1]:.1f})")
 			print(f"  - Active bullets: {len(arena.bullets)}")
 
