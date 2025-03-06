@@ -1,9 +1,9 @@
 # Spinning turret bot
 
 aimloop:
-	AIM 2 + SETAIM
-	SCAN 0 > "fireloop" JUMPIF
-	"aimloop" JUMP
+	AIM 7 + SETAIM
+	SCAN 0 == "aimloop" JUMPIF
+	# Fallthrough
 
 fireloop:
 	8 FIRE
