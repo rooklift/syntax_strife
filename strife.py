@@ -4,7 +4,7 @@ import math
 import random
 import time
 
-import strife
+import strifelib
 
 # Constants for visualization
 SCREEN_WIDTH = 800
@@ -169,7 +169,7 @@ class Visualizer:
 
 
 def main():
-	arena = strife.Arena()
+	arena = strifelib.Arena()
 
 	# Load bot programs from command line arguments
 	for filename in sys.argv[1:]:
