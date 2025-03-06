@@ -1,0 +1,15 @@
+
+
+-90 SETTRACKS
+10 SETSPEED
+
+await_left:
+	X 0 > "await_left" JUMPIF
+
+0 SETTRACKS
+
+await_top:
+	Y 0 > "await_top" JUMPIF
+
+loop:
+	"loop" JUMP
