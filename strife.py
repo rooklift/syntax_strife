@@ -11,7 +11,7 @@ SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 800
 FPS = 60
 BACKGROUND_COLOR = (20, 20, 20)
-MARGIN = 30  # Margin size around the arena (size of one bot)
+MARGIN = 50
 BOT_COLORS = [
 	(255, 100, 100),  # Red
 	(100, 100, 255),  # Blue

@@ -322,31 +322,61 @@ class RoboBot:
 			self.stack.append(value)
 
 	def scan_for_enemies(self, arena):
-	    # Scan for enemies in the direction of aim
-	    # Simple implementation - should do raycasting?
-	    min_distance = float('inf')
 
-	    for bot in arena.bots:
-	        if bot is self:
-	            continue
+		min_distance = float("inf")
 
-	        # Calculate distance and angle to target
-	        dx = bot.position[0] - self.position[0]
-	        dy = bot.position[1] - self.position[1]
-	        distance = math.sqrt(dx*dx + dy*dy)
+		for bot in arena.bots:
+			if bot is self:
+				continue
 
-	        # Calculate angle to target in degrees
-	        # Modified to make 0 degrees point up
-	        angle = (math.degrees(math.atan2(dy, dx)) + 90) % 360
+			# Calculate vector to target bot's center
+			dx = bot.position[0] - self.position[0]
+			dy = bot.position[1] - self.position[1]
 
-	        # Check if in field of view (within 3 degrees of aim)
-	        angle_diff = min((angle - self.aim_direction) % 360,
-	                         (self.aim_direction - angle) % 360)
+			# Calculate straight-line distance to target
+			distance = math.sqrt(dx*dx + dy*dy)
 
-	        if angle_diff <= 3 and distance < min_distance:
-	            min_distance = distance
+			# Calculate angle to target in degrees (0 degrees is up)
+			angle_to_target = (math.degrees(math.atan2(dy, dx)) + 90) % 360
 
-	    return min_distance if min_distance != float('inf') else 0
+			# Convert aim direction to radians
+			aim_rad = math.radians((self.aim_direction - 90) % 360)
+
+			# Create a vector representing the aim direction
+			aim_x = math.cos(aim_rad)
+			aim_y = math.sin(aim_rad)
+
+			# Calculate the minimum distance from the bot's center to the line of fire
+			# This is the perpendicular distance from the bot's center to the ray
+
+			# Compute the dot product to find projection of (dx,dy) onto aim vector
+			t = dx * aim_x + dy * aim_y
+
+			# If t < 0, the bot is behind us
+			if t < 0:
+				continue
+
+			# Calculate the closest point on the aim ray to the target bot's center
+			closest_x = self.position[0] + aim_x * t
+			closest_y = self.position[1] + aim_y * t
+
+			# Calculate perpendicular distance from closest point to bot center
+			perpendicular_dx = closest_x - bot.position[0]
+			perpendicular_dy = closest_y - bot.position[1]
+			perpendicular_distance = math.sqrt(perpendicular_dx*perpendicular_dx + perpendicular_dy*perpendicular_dy)
+
+			# If perpendicular distance is less than bot radius, we'll hit it
+			if perpendicular_distance <= bot.radius:
+				# Calculate actual distance along the ray where we'd hit the bot
+				# We need to subtract the distance from the edge of the bot to its center
+				# in the direction of the ray
+				hit_distance = t - math.sqrt(bot.radius*bot.radius - perpendicular_distance*perpendicular_distance)
+
+				# Update minimum distance if this is closer
+				if hit_distance > 0 and hit_distance < min_distance:
+					min_distance = hit_distance
+
+		return min_distance if min_distance != float("inf") else 0
 
 	def fire_weapon(self, power, arena):
 		"""Fire weapon at enemies in aim direction - creates a bullet"""
