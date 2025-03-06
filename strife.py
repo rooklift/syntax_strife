@@ -80,7 +80,7 @@ class RoboBot:
 				if not self.execute_next(arena):
 					break
 		except Exception as e:
-			print(e)
+			print(self.name, e)
 			self.health = 0
 			return
 
@@ -102,13 +102,15 @@ class RoboBot:
 
 			self.position = (new_x, new_y)
 
+	def get_address_from_item(self, stack_item):
+		if isinstance(stack_item, int):
+			return stack_item
+		return self.labels[stack_item]
+
 	def execute_next(self, arena):
-		"""Execute the next operation in the program"""
-		if self.pc >= len(self.tokens):
-			return False
 
 		token = self.tokens[self.pc]
-		self.pc += 1
+		self.pc += 1					# So self.pc now points to the token after this one. CALL can thus use it as is.
 
 		# Count this operation
 		self.ops_executed += 1
@@ -137,268 +139,120 @@ class RoboBot:
 			self.stack.append(distance)
 
 		elif token == "SETTRACKS":
-			if not self.stack:
-				self.health = 0  # Stack underflow kills the bot
-				return False
-
 			new_direction = int(self.stack.pop()) % 360
 			energy_cost = calculate_direction_change_cost(self.tracks_direction, new_direction)
-
 			self.energy -= energy_cost
 			self.tracks_direction = new_direction
 
 		elif token == "SETAIM":
-			if not self.stack:
-				self.health = 0
-				return False
-
 			new_direction = int(self.stack.pop()) % 360
 			self.energy -= 2  # Fixed cost
 			self.aim_direction = new_direction
 
 		elif token == "SETSPEED":
-			if not self.stack:
-				self.health = 0
-				return False
-
 			new_speed = min(10, max(0, int(self.stack.pop())))
 			self.energy -= new_speed  # Cost equals new speed
 			self.speed = new_speed
 
 		elif token == "FIRE":
-			if not self.stack:
-				self.health = 0
-				return False
-
 			power = min(10, max(1, int(self.stack.pop())))
 			self.energy -= 2 * power  # Cost is 2 * power
 			self.fire_weapon(power, arena)
 
 		elif token == "DUP":
-			if not self.stack:
-				self.health = 0
-				return False
-
 			self.stack.append(self.stack[-1])
 
 		elif token == "DROP":
-			if not self.stack:
-				self.health = 0
-				return False
-
 			self.stack.pop()
 
 		elif token == "SWAP":
-			if len(self.stack) < 2:
-				self.health = 0
-				return False
-
 			self.stack[-1], self.stack[-2] = self.stack[-2], self.stack[-1]
 
 		elif token == "+":
-			if len(self.stack) < 2:
-				self.health = 0
-				return False
-
 			b = self.stack.pop()
 			a = self.stack.pop()
 			self.stack.append(a + b)
 
 		elif token == "-":
-			if len(self.stack) < 2:
-				self.health = 0
-				return False
-
 			b = self.stack.pop()
 			a = self.stack.pop()
 			self.stack.append(a - b)
 
 		elif token == "*":
-			if len(self.stack) < 2:
-				self.health = 0
-				return False
-
 			b = self.stack.pop()
 			a = self.stack.pop()
 			self.stack.append(a * b)
 
 		elif token == "/":
-			if len(self.stack) < 2:
-				self.health = 0
-				return False
-
 			b = self.stack.pop()
 			a = self.stack.pop()
-			if b == 0:
-				self.health = 0  # Division by zero kills the bot
-				return False
-
-			self.stack.append(a // b)  # Integer division
+			self.stack.append(a // b)		# Integer division
 
 		elif token == "%":
-			if len(self.stack) < 2:
-				self.health = 0
-				return False
-
 			b = self.stack.pop()
 			a = self.stack.pop()
-			if b == 0:
-				self.health = 0  # Modulo by zero kills the bot
-				return False
-
 			self.stack.append(a % b)
 
 		elif token == "<":
-			if len(self.stack) < 2:
-				self.health = 0
-				return False
-
 			b = self.stack.pop()
 			a = self.stack.pop()
 			self.stack.append(1 if a < b else 0)
 
 		elif token == ">":
-			if len(self.stack) < 2:
-				self.health = 0
-				return False
-
 			b = self.stack.pop()
 			a = self.stack.pop()
 			self.stack.append(1 if a > b else 0)
 
 		elif token == "=":
-			if len(self.stack) < 2:
-				self.health = 0
-				return False
-
 			b = self.stack.pop()
 			a = self.stack.pop()
 			self.stack.append(1 if a == b else 0)
 
 		elif token == "JUMP" or token == "RETURN":
-
-			# This needs to work whether the address is a label or a number.
-
-			if not self.stack:
-				self.health = 0
-				return False
-
-			raw_target = self.stack.pop()
-			target = None
-
-			if isinstance(raw_target, str):
-				label = raw_target
-				if label.startswith('"') and label.endswith('"'):
-					label = label[1:-1]
-				if label in self.labels:
-					target = self.labels[label]
-			elif isinstance(raw_target, int):
-				target = raw_target
-
-			if target == None:
-				raise ValueError("Bad jump: " + str(raw_target))
-
+			target = self.get_address_from_item(self.stack.pop())
 			self.pc = target
 
-
 		elif token == "JUMPIF":
-			if len(self.stack) < 2:
-				self.health = 0
-				return False
-
-			label = self.stack.pop()
+			target = self.get_address_from_item(self.stack.pop())
 			condition = self.stack.pop()
-
-			# Remove quotes if present
-			if isinstance(label, str):
-				if label.startswith('"') and label.endswith('"'):
-					label = label[1:-1]
-
 			if condition:
-				if label in self.labels:
-					self.pc = self.labels[label]
-				else:
-					print(f"Error: Undefined label '{label}'")
-					self.health = 0
-					return False
+				self.pc = target
 
 		elif token == "CALL":
-			if not self.stack:
-				self.health = 0
-				return False
-
-			label = self.stack.pop()
-			self.stack.append(self.pc)  # Push return address
-
-			# Remove quotes if present
-			if isinstance(label, str):
-				if label.startswith('"') and label.endswith('"'):
-					label = label[1:-1]
-
-			if label in self.labels:
-				self.pc = self.labels[label]
-			else:
-				print(f"Error: Undefined label '{label}'")
-				self.health = 0
-				return False
+			target = self.get_address_from_item(self.stack.pop())
+			self.stack.append(self.pc)		# Push return address
+			self.pc = self.labels[label]
 
 		elif token == "CALLIF":
-			if len(self.stack) < 2:
-				self.health = 0
-				return False
-
-			label = self.stack.pop()
+			target = self.get_address_from_item(self.stack.pop())
 			condition = self.stack.pop()
-
 			if condition:
-				# Push return address only if condition is true
-				self.stack.append(self.pc)
-
-				# Remove quotes if present
-				if isinstance(label, str):
-					if label.startswith('"') and label.endswith('"'):
-						label = label[1:-1]
-
-				if label in self.labels:
-					self.pc = self.labels[label]
-				else:
-					print(f"Error: Undefined label '{label}'")
-					self.health = 0
-					return False
+				self.stack.append(self.pc)	# Push return address
+				self.pc = target
 
 		elif token.startswith('"') and token.endswith('"'):
-			# String literal - push onto stack
-			self.stack.append(token[1:-1])
+			self.stack.append(token[1:-1])	# Push string literal onto stack, sans quotation marks
 
 		elif token == "STORE":
-			if len(self.stack) < 2:
-				self.health = 0
-				return False
-
 			value = self.stack.pop()
 			var_name = self.stack.pop()
+			if not isinstance(var_name, str):
+				raise TypeError("Variable identifier was not a string!")
 			self.variables[var_name] = value
 
 		elif token == "LOAD":
-			if not self.stack:
-				self.health = 0
-				return False
-
 			var_name = self.stack.pop()
+			if not isinstance(var_name, str):
+				raise TypeError("Variable identifier was not a string!")
 			if var_name in self.variables:
 				self.stack.append(self.variables[var_name])
 			else:
-				self.stack.append(0)  # Default to 0 for undefined variables
+				self.stack.append(0)			# Default to 0 for undefined variables
 
 		else:
-			# Try to parse as a number
-			try:
-				value = float(token)
-				if value.is_integer():
-					value = int(value)
-				self.stack.append(value)
-			except ValueError:
-				print(f"Unknown token: {token}")
+			value = float(token)
+			value = int(value)					# Let's say we only have ints, ever
+			self.stack.append(value)
 
 		return True
 

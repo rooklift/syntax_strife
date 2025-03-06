@@ -5,8 +5,8 @@
 main_loop:
 	TRACKS 3 + SETTRACKS		# Gradually turn
 	AIM 15 + SETAIM				# Spin turret faster
-	SCAN						# Check for enemies
-	DUP 0 >						# Found something? First, save put a 2nd copy of SCAN on the stack.
+	SCAN DUP					# Check for enemies and save an extra copy of the result.
+	0 >							# Found something?
 	"fire" JUMPIF				# Jump to fire if found (which uses the copy of SCAN result).
 	DROP						# Clear the unneeded SCAN copy.
 	"main_loop" JUMP			# Loop
