@@ -5,18 +5,19 @@ import sys
 class RoboBot:
 	def __init__(self, program, name="Bot"):
 		self.name = name
-		self.tokens = self.tokenize(program)
+		self.program = program
+		self.tokens, self.token_counts = self.tokenize(program)
 		self.position = (0, 0)		# To be set from outside
 		self.health = 100
 		self.energy = 100
-		self.tracks_direction = 0  # 0-359 degrees
-		self.aim_direction = 0     # 0-359 degrees
-		self.speed = 0             # 0-10 units per tick
+		self.tracks_direction = 0	# 0-359 degrees
+		self.aim_direction = 0		# 0-359 degrees
+		self.speed = 0				# 0-10 units per tick
 
 		# Execution state
-		self.pc = 0                # Program counter
-		self.stack = []            # Data stack
-		self.variables = {}        # Named variables
+		self.pc = 0					# Program counter
+		self.stack = []				# Data stack
+		self.variables = {}			# Named variables
 		self.labels = self.find_labels()
 
 		# Limits
@@ -24,35 +25,34 @@ class RoboBot:
 		self.ops_executed = 0
 
 	def tokenize(self, program):
-		"""Convert program string to list of tokens"""
-		lines = program.strip().split("\n")
+
+		lines = program.split("\n")
 		tokens = []
+		counts = []
+
 		for line in lines:
-			# Remove comments
+
 			if "#" in line:
-				line = line[:line.index("#")]
+				line = line[:line.index("#")]				# Remove comments
 
-			# Skip empty lines
 			line = line.strip()
-			if not line:
-				continue
 
-			# Handle labels (lines ending with colon)
-			if ":" in line and not line.startswith("#"):
+			if not line:
+				line_tokens = []							# No tokens on this line
+			elif ":" in line:								# Line with a label
 				label_part = line.split(":", 1)[0].strip()
 				rest_part = line.split(":", 1)[1].strip()
-
-				# Add label as a token with colon
-				tokens.append(f"{label_part}:")
-
-				# Process rest of line if any
+				line_tokens = []
+				line_tokens.append(f"{label_part}:")		# Add label as a token with colon
 				if rest_part:
-					tokens.extend(rest_part.split())
-			else:
-				# Normal line - add tokens
-				tokens.extend(line.split())
+					line_tokens.extend(rest_part.split())
+			else:											# Normal line
+				line_tokens = line.split()
 
-		return tokens
+			tokens.extend(line_tokens)
+			counts.append(len(line_tokens))
+
+		return tokens, counts
 
 	def find_labels(self):
 		"""Find all label definitions in the program"""
@@ -81,7 +81,16 @@ class RoboBot:
 				self.execute_next(arena)
 
 		except Exception as e:
-			print(self.name, e)
+
+			print("\n", self.name, e)
+
+			n = 0
+			for i, c in enumerate(self.token_counts):
+				n += c
+				if n >= self.pc:
+					print(f"Line {i}:  ", self.program.split("\n")[i], "\n")
+					break
+
 			self.health = 0
 			return
 
