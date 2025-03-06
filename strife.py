@@ -69,6 +69,7 @@ class RoboBot:
 
 	def tick(self, arena):
 		try:
+
 			if self.health <= 0:
 				return
 			self.energy += 1
@@ -77,8 +78,8 @@ class RoboBot:
 			self.move()
 			self.ops_executed = 0			# Reset for this tick
 			while self.ops_executed < self.ops_per_tick:
-				if not self.execute_next(arena):
-					break
+				self.execute_next(arena)
+
 		except Exception as e:
 			print(self.name, e)
 			self.health = 0
@@ -115,9 +116,8 @@ class RoboBot:
 		# Count this operation
 		self.ops_executed += 1
 
-		# Handle different operations
 		if token.endswith(":") and token[:-1] in self.labels:
-			return True
+			return						# It's a label so it does nothing itself.
 
 		elif token == "TRACKS":
 			self.stack.append(self.tracks_direction)
@@ -254,8 +254,6 @@ class RoboBot:
 			value = int(value)					# Let's say we only have ints, ever
 			self.stack.append(value)
 
-		return True
-
 	def scan_for_enemies(self, arena):
 		"""Scan for enemies in the direction of aim"""
 		# Simple implementation - in real game would do raycasting
@@ -275,11 +273,11 @@ class RoboBot:
 			if angle < 0:
 				angle += 360
 
-			# Check if in field of view (within 15 degrees of aim)
+			# Check if in field of view (within 3 degrees of aim)
 			angle_diff = min((angle - self.aim_direction) % 360,
 							 (self.aim_direction - angle) % 360)
 
-			if angle_diff <= 15 and distance < min_distance:
+			if angle_diff <= 3 and distance < min_distance:
 				min_distance = distance
 
 		return min_distance if min_distance != float('inf') else 0
@@ -313,7 +311,7 @@ class Bullet:
 		self.power = power
 		self.speed = speed
 		self.owner = owner
-		self.max_range = power * 50
+		self.max_range = 1000
 		self.distance_traveled = 0
 
 	def move(self):
